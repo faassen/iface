@@ -1,0 +1,95 @@
+Compatibility with zope.interface
+=================================
+
+The goal of iface to be behavior-compatible with zope.interface and
+zope.component. We also intend to eventually provide support for
+zope.interface. We test the backwards compatibility here. The idea is
+that this test is run twice, once with the AdapterRegistry from
+zope.interface, and once with the compatible
+CompatibilityAdapterRegistry provided by iface.
+
+  >>> from zope.interface import Interface
+
+Single adaptation
+-----------------
+
+  >>> class IA(Interface):
+  ...     pass
+  >>> class IB(IA):
+  ...     pass
+  >>> class IC(IA):
+  ...     pass
+  >>> class ID(IB, IC):
+  ...      pass
+  >>> class ILookup(Interface):
+  ...      "A simple interface to look up"
+
+  >>> reg = AdapterRegistry()
+  >>> reg.register((IA,), ILookup, '', u'Value for A')
+  >>> reg.lookup((IA,), ILookup)
+  u'Value for A'
+
+  >>> reg = AdapterRegistry()
+  >>> reg.register((IB,), ILookup, '', u'Value for B')
+  >>> reg.lookup((IB,), ILookup)
+  u'Value for B'
+
+  >>> print reg.lookup((IC,), ILookup)
+  None
+
+  >>> print reg.lookup((IA,), ILookup)
+  None
+
+  >>> reg.lookup((ID,), ILookup)
+  u'Value for B'
+
+  >>> reg.register((IC,), ILookup, '', u'Value for C')
+  >>> reg.lookup((ID,), ILookup)
+  u'Value for B'
+
+Multi adaptation
+----------------
+
+  >>> class IAlpha(Interface):
+  ...    pass
+  >>> class IBeta(IAlpha):
+  ...    pass
+  >>> class IGamma(IBeta):
+  ...    pass
+
+  >>> class IOne(Interface):
+  ...    pass
+  >>> class ITwo(IOne):
+  ...    pass
+  >>> class IThree(ITwo):
+  ...    pass
+
+  >>> reg = AdapterRegistry()
+  >>> reg.register((IAlpha, IThree), ILookup, '', u'Value for alpha, three')
+  >>> reg.register((IBeta, ITwo), ILookup, '', u'Value for beta, two')
+  >>> reg.lookup((IAlpha, IThree), ILookup)
+  u'Value for alpha, three'
+  >>> reg.lookup((IBeta, ITwo), ILookup)
+  u'Value for beta, two'
+  >>> reg.lookup((IGamma, ITwo), ILookup)
+  u'Value for beta, two'
+  >>> reg.lookup((IBeta, IThree), ILookup)
+  u'Value for beta, two'
+  >>> reg.lookup((IGamma, IThree), ILookup)
+  u'Value for beta, two'
+  >>> print reg.lookup((IAlpha, IOne), ILookup)
+  None
+  >>> print reg.lookup((IAlpha, ITwo), ILookup)
+  None
+  >>> print reg.lookup((IBeta, IOne), ILookup)
+  None
+  
+  >>> reg.register((IAlpha, IOne), ILookup, '', u'Value for alpha, one')
+  >>> reg.lookup((IAlpha, IOne), ILookup)
+  u'Value for alpha, one'
+  >>> reg.lookup((IAlpha, ITwo), ILookup)
+  u'Value for alpha, one'
+  >>> reg.lookup((IBeta, IOne), ILookup)
+  u'Value for alpha, one'
+
+

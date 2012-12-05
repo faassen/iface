@@ -1,0 +1,18 @@
+CREDITS
+=======
+
+Implementation
+--------------
+
+* Martijn Faassen
+
+* Thomas Lotze
+
+Helpful discussions
+-------------------
+
+* Gary Poster
+
+* Chris McDonough
+
+And inspired by zope.interface by Jim Fulton.

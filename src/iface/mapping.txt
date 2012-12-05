@@ -1,0 +1,230 @@
+A mapping with acyclic directed graph key
+=========================================
+
+Map
+---
+
+A normal mapping (dictionary) in Python has keys that are completely
+independent from each other. If you look up a particular key, either that
+key is present in the mapping or not at all.
+
+This is a mapping that understands about relations between keys. Keys
+can have zero or more parents. If a key is not found, a value will
+still be found if a parent key can be found.
+
+We create a special kind of keys that can have parents. First we
+create one without parents::
+
+  >>> from iface import MapKey
+  >>> a = MapKey('a')
+
+Now we create keys ``b`` and ``c`` that both have ``a`` for a parent::
+
+  >>> b = MapKey('b', [a])
+  >>> c = MapKey('c', [a])
+
+Finally we create a key ``d`` that has two parents, ``b`` and ``c``::
+
+  >>> d = MapKey('d', [b, c])
+
+Now we create a mapping::
+
+  >>> from iface import Map
+  >>> map = Map()
+
+``a`` can be used just like any dictionary key::
+
+  >>> map[a] = u'Value for A'
+  >>> map[a]
+  u'Value for A'
+
+If we recreate the MapKey (with the same parents, in this case none),
+we can still look up the same value::
+
+  >>> a_new = MapKey('a')
+  >>> map[a_new]
+  u'Value for A'
+
+Once we delete the entry we cannot look it up anymore::
+
+  >>> del map[a]
+  >>> map[a]
+  Traceback (most recent call last):
+    ...
+  KeyError: <MapKey: 'a'>
+  
+We now register something for ``b``::
+
+  >>> map[b] = u'Value for B'
+
+Of course we can find ``b``::
+  >>> map[b]
+  u'Value for B'
+
+We cannot find ``c`` as there is no relation to ``b``::
+
+  >>> map[c]
+  Traceback (most recent call last):
+    ...
+  KeyError: <MapKey: 'c'>
+
+Neither can we find ``a``, as ``b`` is not an ancestor of ``a``::
+
+  >>> map[a]
+  Traceback (most recent call last):
+    ...
+  KeyError: <MapKey: 'a'>
+
+Looking up ancestors
+~~~~~~~~~~~~~~~~~~~~
+
+Now for the special behavor. Since ``d`` does have ``b`` as an
+ancestor, we can look it up, finding the value for B::
+
+  >>> map[d]
+  u'Value for B'
+
+We register a value for ``c``::
+
+  >>> map[c] = u'Value for C'
+
+When we look up the value for ``d`` we get still the value for ``b``,
+as it comes first in the parent resolution order (similar to Python's
+method resolution order for classes)::
+
+  >>> map[d]
+  u'Value for B'
+
+We can also use ``.get``::
+
+  >>> map.get(d)
+  u'Value for B'
+
+When we take out the value for ``b`` we get the value for ``c`` when we
+look up ``d``::
+  
+  >>> del map[b]
+  >>> map[d]
+  u'Value for C'
+
+If we store a ``d`` key itself, then we will get its value, not the
+value of its ancestor ``c``::
+
+  >>> map[d] = u'Value for D'
+  >>> map[d]
+  u'Value for D'
+
+We remove ``d`` again so that we find the value for c again when we
+look up ``d``::
+
+  >>> del map[d]
+  >>> map[d]
+  u'Value for C'
+
+Sometimes it is useful to look up the key as if the map *is* a real
+dictionary, without the ancestor lookup behavior to kick in. We have
+two methods for this, the equivalent of the normal ``dictionary[]``
+(__getitem__) lookup, and the equivalent of the normal
+``dictionary.get`` lookup, named ``exact_getitem`` and ``exact_get``::
+
+  >>> map.exact_getitem(d)
+  Traceback (most recent call last):
+   ...
+  KeyError: <MapKey: 'd'>
+
+  >>> print map.exact_get(d)
+  None
+
+  >>> map.exact_getitem(c)
+  u'Value for C'
+ 
+  >>> map.exact_get(c)
+  u'Value for C'
+
+
+MultiMap
+--------
+
+A MultiMap is a map that takes sequences of MapKey objects as its
+key. We call such a sequence of MapKeys a MultiMapKey.
+
+When looking up a MultiMapKey in a MultiMap, it is compared
+component-wise to the MultiMapKeys registered in the MultiMap.  Each
+of the components of a MultiMapKey found must be either equal to or a
+parent of the corresponding component of the MultiMapKey being looked
+up.  If more than one MultiMapKey could be found by a lookup, the one
+whose first component matches most specifically wins, the other
+components being considered as subordinate comparison criteria, in
+order.
+
+We define gamma, which has parent beta, which has parent alpha::
+
+  >>> alpha = MapKey('alpha')
+  >>> beta = MapKey('beta', [alpha])
+  >>> gamma = MapKey('gamma', [beta])
+
+We define three, which has parent two, which has parent one::
+
+  >>> one = MapKey('one')
+  >>> two = MapKey('two', [one])
+  >>> three = MapKey('three', [two])
+
+Now we create a MultiMap and register a few values by MultiMapKeys::
+
+  >>> from iface import MultiMap
+  >>> multimap = MultiMap()
+
+  >>> multimap[(alpha, three)] = u'Value for alpha, three'
+  >>> multimap[(beta, two)] = u'Value for beta, two'
+
+When looking up any of these two MultiMapKeys, we'll get back the respective
+values::
+
+  >>> multimap[(alpha, three)]
+  u'Value for alpha, three'
+  >>> multimap[(beta, two)]
+  u'Value for beta, two'
+
+We'll also be able to look up MultiMapKeys that are more specific than
+anything registered in at least one component. When a look-up could find two
+less specific MultiMapKeys, the one with the more specific first component is
+preferred::
+
+  >>> multimap[(gamma, two)]
+  u'Value for beta, two'
+  >>> multimap[(beta, three)]
+  u'Value for beta, two'
+  >>> multimap[(gamma, three)]
+  u'Value for beta, two'
+
+However, we cannot look up MultiMapKeys that are less specific than anything
+registered in any component::
+
+  >>> multimap[(alpha, one)]
+  Traceback (most recent call last):
+    ...
+  KeyError: <MapKey: 'one'>
+  >>> multimap[(alpha, two)]
+  Traceback (most recent call last):
+    ...
+  KeyError: <MapKey: 'two'>
+  >>> multimap[(beta, one)]
+  Traceback (most recent call last):
+    ...
+  KeyError: <MapKey: 'one'>
+
+After we provide a value for the least specific combination now, all of the
+latter look-ups will succeed by falling back to that value::
+
+  >>> multimap[(alpha, one)] = u'Value for alpha, one'
+
+  >>> multimap[(alpha, one)]
+  u'Value for alpha, one'
+  >>> multimap[(alpha, two)]
+  u'Value for alpha, one'
+  >>> multimap[(beta, one)]
+  u'Value for alpha, one'
+
+Note that when looking up ``beta, one``, the look-up algorithm resorts to
+considering registered keys starting with the less specific ``alpha`` as first
+component in order to satisfy the requirement of the second component.
